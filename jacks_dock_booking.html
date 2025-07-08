@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jack's Dock Reservation</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+    header img { width: 100%; height: auto; display: block; }
+    .container { max-width: 600px; margin: 20px auto; padding: 0 15px; }
+    form { display: flex; flex-direction: column; }
+    label { margin-top: 15px; font-weight: bold; }
+    input, select { padding: 8px; font-size: 1em; margin-top: 5px; }
+    .checkbox-group { display: flex; align-items: center; margin-top: 15px; }
+    .checkbox-group input { margin-right: 10px; }
+    button { margin-top: 20px; padding: 10px; font-size: 1em; cursor: pointer; }
+    .error { color: red; margin-top: 5px; }
+    .confirmation { margin-top: 20px; }
+    .confirmation img { float: left; margin-right: 15px; width: 200px; }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="515392636_1524779621826826_8852818809371700896_n.jpg" alt="Jack's Dock Banner">
+  </header>
+  <div class="container" id="mainContainer">
+    <h1>Reserve Your Time at Jack's Dock</h1>
+    <form id="bookingForm">
+      <label for="date">Date:</label>
+      <input type="date" id="date" name="date" min="2025-06-01" max="2025-09-15" required>
+
+      <label for="startTime">Start Time:</label>
+      <select id="startTime" name="startTime" required>
+        <option value="" disabled selected>Select a start time</option>
+      </select>
+
+      <label for="endTime">End Time:</label>
+      <select id="endTime" name="endTime" required>
+        <option value="" disabled selected>Select an end time</option>
+      </select>
+
+      <label for="name">Name:</label>
+      <input type="text" id="name" name="name" required>
+
+      <label for="email">Email:</label>
+      <input type="email" id="email" name="email" required>
+
+      <label for="phone">Phone:</label>
+      <input type="tel" id="phone" name="phone" required>
+
+      <div class="checkbox-group">
+        <input type="checkbox" id="waiver" name="waiver" required>
+        <label for="waiver">I agree to the <a href="/waiver" target="_blank">waiver</a></label>
+      </div>
+
+      <button type="submit">Reserve</button>
+      <div id="errorMsg" class="error"></div>
+    </form>
+  </div>
+
+  <script>
+    // Populate time slots
+    const startTimes = ["08:00","08:30","09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30"];
+    const endTimes   = ["08:30","09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00"];
+    const startSelect=document.getElementById('startTime'), endSelect=document.getElementById('endTime'), dateInput=document.getElementById('date');
+    function populateTimes(){
+      startSelect.innerHTML=`<option value="" disabled selected>Select a start time</option>`;
+      endSelect.innerHTML=`<option value="" disabled selected>Select an end time</option>`;
+      // TODO: fetch reserved slots from server to disable unavailable options
+      startTimes.forEach(t=> startSelect.appendChild(new Option(t,t)));
+      endTimes.forEach(t=> endSelect.appendChild(new Option(t,t)));
+    }
+    dateInput.addEventListener('change', populateTimes);
+    populateTimes();
+
+    document.getElementById('bookingForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const errorMsg=document.getElementById('errorMsg'); errorMsg.textContent='';
+      const dateVal=dateInput.value;
+      const startVal=startSelect.value;
+      const endVal=endSelect.value;
+      const nameVal=document.getElementById('name').value;
+      const emailVal=document.getElementById('email').value;
+      const phoneVal=document.getElementById('phone').value;
+      const waiver=document.getElementById('waiver').checked;
+      if(!dateVal||!startVal||!endVal||!nameVal||!emailVal||!phoneVal||!waiver){ errorMsg.textContent='All fields are required.'; return; }
+      const [h1,m1]=startVal.split(':').map(Number), [h2,m2]=endVal.split(':').map(Number);
+      const startMin=h1*60+m1, endMin=h2*60+m2, diff=endMin-startMin;
+      if(endMin<=startMin||diff%30!==0){ errorMsg.textContent='Invalid time selection.'; return; }
+      let cost;
+      if(diff===30)cost=30;else if(diff===60)cost=55;else if(diff===90)cost=80;else if(diff===120)cost=100;else cost=100+((diff-120)/60)*20;
+      // Send to server to save in Excel
+      fetch('/reserve', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ date:dateVal, start:startVal, end:endVal, name:nameVal,email:emailVal,phone:phoneVal,cost })
+      })
+      .then(res=>res.json())
+      .then(data=>{
+        const container=document.getElementById('mainContainer');
+        container.innerHTML=`<div class="confirmation">
+          <img src="514540547_731486836130699_8104500233328628078_n.jpg" alt="Confirmation">
+          <h2>Reservation Confirmed!</h2>
+          <p><strong>Name:</strong> ${nameVal}</p>
+          <p><strong>Email:</strong> ${emailVal}</p>
+          <p><strong>Phone:</strong> ${phoneVal}</p>
+          <p><strong>Date:</strong> ${dateVal}</p>
+          <p><strong>Time:</strong> ${startVal} - ${endVal}</p>
+          <p><strong>Cost:</strong> $${cost.toFixed(2)}</p>
+          <p>Please complete your payment:</p>
+          <ul>
+            <li><a href="https://www.paypal.com/paypalme/YourPayPalID/${cost}" target="_blank">Pay with PayPal</a></li>
+            <li><a href="https://venmo.com/YourVenmoID?txn=pay&amount=${cost}" target="_blank">Pay with Venmo</a></li>
+          </ul>
+        </div>`;
+      })
+      .catch(err=>{ errorMsg.textContent='Error saving reservation. Please try again.'; });
+    });
+  </script>
+</body>
+</html>
